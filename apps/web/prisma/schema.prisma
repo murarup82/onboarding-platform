@@ -21,13 +21,174 @@ enum Priority {
   CRITICAL
 }
 
+enum CaseStatus {
+  PLANNED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELED
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum OwnerRole {
+  HR_ADMIN
+  DEPT_OWNER
+  HIRING_MANAGER
+  EMPLOYEE
+  SYS_ADMIN
+}
+
+enum AuditEntityType {
+  TASK
+  CASE
+  TEMPLATE
+  TEMPLATE_VERSION
+  TEMPLATE_TASK
+  TASK_DEPENDENCY
+  CHECKLIST_ITEM
+  INBOUND_EVENT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  STATUS_CHANGE
+  ASSIGN
+  COMMENT
+  RUN
+  COMPLETE
+  FAIL
+}
+
+enum InboundEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
 model Task {
-  id        String     @id @default(cuid())
-  title     String
-  department String
-  status    TaskStatus @default(NOT_STARTED)
-  priority  Priority   @default(MED)
-  dueDate   DateTime?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id              String           @id @default(cuid())
+  title           String
+  department      String
+  status          TaskStatus       @default(NOT_STARTED)
+  priority        Priority         @default(MED)
+  dueDate         DateTime?
+  evidenceUrl     String?
+  evidenceNote    String?
+  isRequired      Boolean          @default(true)
+  ownerRole       OwnerRole?
+  assignedToEmail String?
+  caseId          String?
+  case            Case?            @relation(fields: [caseId], references: [id])
+  checklistItems  ChecklistItem[]
+  dependencies    TaskDependency[] @relation("TaskDependencies_taskId")
+  blocking        TaskDependency[] @relation("TaskDependencies_dependsOnId")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Case {
+  id                String            @id @default(cuid())
+  title             String
+  employeeEmail     String
+  startDate         DateTime?
+  status            CaseStatus        @default(PLANNED)
+  department        String
+  progress          Int               @default(0)
+  templateVersionId String?
+  templateVersion   TemplateVersion?  @relation(fields: [templateVersionId], references: [id])
+  tasks             Task[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model Template {
+  id                  String            @id @default(cuid())
+  name                String
+  description         String?
+  department          String
+  status              TemplateStatus    @default(DRAFT)
+  latestVersionNumber Int               @default(1)
+  versions            TemplateVersion[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+}
+
+model TemplateVersion {
+  id            String         @id @default(cuid())
+  templateId    String
+  template      Template       @relation(fields: [templateId], references: [id])
+  versionNumber Int
+  status        TemplateStatus @default(DRAFT)
+  publishedAt   DateTime?
+  tasks         TemplateTask[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([templateId, versionNumber])
+}
+
+model TemplateTask {
+  id                String          @id @default(cuid())
+  templateVersionId String
+  templateVersion   TemplateVersion @relation(fields: [templateVersionId], references: [id])
+  title             String
+  department        String
+  ownerRole         OwnerRole?
+  dueOffsetDays     Int?
+  priority          Priority       @default(MED)
+  isRequired        Boolean        @default(true)
+  order             Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model TaskDependency {
+  id          String @id @default(cuid())
+  taskId      String
+  dependsOnId String
+  task        Task   @relation("TaskDependencies_taskId", fields: [taskId], references: [id])
+  dependsOn   Task   @relation("TaskDependencies_dependsOnId", fields: [dependsOnId], references: [id])
+
+  @@unique([taskId, dependsOnId])
+}
+
+model ChecklistItem {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id])
+  label       String
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditEntry {
+  id         String          @id @default(cuid())
+  entityType AuditEntityType
+  entityId   String
+  action     AuditAction
+  actorEmail String?
+  data       Json?
+  createdAt  DateTime        @default(now())
+}
+
+model InboundEvent {
+  id             String             @id @default(cuid())
+  source         String
+  externalId     String?
+  idempotencyKey String             @unique
+  payload        Json
+  status         InboundEventStatus @default(RECEIVED)
+  processedAt    DateTime?
+  error          String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 }
