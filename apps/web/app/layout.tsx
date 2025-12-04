@@ -7,6 +7,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <nav style={{ display: "flex", gap: 12 }}>
             <a href="/">Home</a>
             <a href="/health">Health</a>
+            <a href="/tasks">Tasks</a>
           </nav>
         </header>
         <hr style={{ margin: "16px 0" }} />
