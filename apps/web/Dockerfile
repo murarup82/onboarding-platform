@@ -32,5 +32,15 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 
+# Copy Prisma schema and migrations for runtime access
+COPY prisma ./prisma
+COPY node_modules/@prisma ./node_modules/@prisma
+
+# Entrypoint script to run migrations before starting app
+RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
+    echo 'npx prisma migrate deploy' >> /app/entrypoint.sh && \
+    echo 'exec node server.js' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["/app/entrypoint.sh"]
