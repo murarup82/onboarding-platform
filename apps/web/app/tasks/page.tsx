@@ -15,6 +15,13 @@ type Task = {
     caseId?: string | null;
     evidenceNote?: string | null;
     evidenceUrl?: string | null;
+    checklist?: ChecklistItem[];
+};
+
+type ChecklistItem = {
+    id: string;
+    label: string;
+    completed: boolean;
 };
 
 const STATUSES: Task["status"][] = ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "DONE"];
@@ -28,6 +35,9 @@ export default function TasksPage() {
     const [msg, setMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [filterDept, setFilterDept] = useState("");
+    const [filterStatus, setFilterStatus] = useState<Task["status"] | "">("");
+    const [filterPriority, setFilterPriority] = useState<string>("");
+    const [checklists, setChecklists] = useState<Record<string, { items: ChecklistItem[]; newLabel: string }>>({});
 
     const grouped = useMemo(() => {
         const g: Record<Task["status"], Task[]> = {
@@ -46,6 +56,8 @@ export default function TasksPage() {
         try {
             const url = new URL("/api/tasks", window.location.origin);
             if (filterDept) url.searchParams.set("department", filterDept);
+            if (filterStatus) url.searchParams.set("status", filterStatus);
+            if (filterPriority) url.searchParams.set("priority", filterPriority);
             const res = await fetch(url.toString());
             const json = await res.json().catch(() => null);
             if (!res.ok) {
@@ -66,7 +78,7 @@ export default function TasksPage() {
     useEffect(() => {
         load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filterDept]);
+    }, [filterDept, filterStatus, filterPriority]);
 
     async function createTask(e: FormEvent) {
         e.preventDefault();
@@ -118,6 +130,82 @@ export default function TasksPage() {
         }
     }
 
+    async function loadChecklist(taskId: string) {
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/checklist`);
+            const json = await res.json().catch(() => null);
+            if (!res.ok) return;
+            setChecklists((prev) => ({
+                ...prev,
+                [taskId]: { items: json?.data ?? [], newLabel: prev[taskId]?.newLabel ?? "" },
+            }));
+        } catch (error) {
+            console.error("load checklist", error);
+        }
+    }
+
+    function Checklist({
+        taskId,
+        loadChecklist,
+        itemsState,
+        setItemsState,
+    }: {
+        taskId: string;
+        loadChecklist: (taskId: string) => Promise<void>;
+        itemsState?: { items: ChecklistItem[]; newLabel: string };
+        setItemsState: React.Dispatch<React.SetStateAction<Record<string, { items: ChecklistItem[]; newLabel: string }>>>;
+    }) {
+        const items = itemsState?.items ?? [];
+        const newLabel = itemsState?.newLabel ?? "";
+
+        async function toggle(itemId: string, completed: boolean) {
+            await fetch(`/api/tasks/${taskId}/checklist/${itemId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ completed }),
+            });
+            await loadChecklist(taskId);
+        }
+
+        async function addItem() {
+            const label = newLabel.trim();
+            if (!label) return;
+            await fetch(`/api/tasks/${taskId}/checklist`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ label }),
+            });
+            setItemsState((prev) => ({ ...prev, [taskId]: { items, newLabel: "" } }));
+            await loadChecklist(taskId);
+        }
+
+        return (
+            <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 6, marginTop: 6 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Checklist</div>
+                <div style={{ display: "grid", gap: 4 }}>
+                    {items.length === 0 && <div style={{ opacity: 0.7 }}>No items.</div>}
+                    {items.map((c) => (
+                        <label key={c.id} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <input type="checkbox" checked={c.completed} onChange={(e) => toggle(c.id, e.target.checked)} />
+                            <span>{c.label}</span>
+                        </label>
+                    ))}
+                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    <input
+                        value={newLabel}
+                        onChange={(e) => setItemsState((prev) => ({ ...prev, [taskId]: { items, newLabel: e.target.value } }))}
+                        placeholder="Add item"
+                        style={{ padding: 6, flex: 1 }}
+                    />
+                    <button type="button" onClick={addItem} style={{ padding: "6px 10px" }}>
+                        Add
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <main>
             <h1>Tasks</h1>
@@ -154,6 +242,28 @@ export default function TasksPage() {
                     <span>Filter dept</span>
                     <input value={filterDept} onChange={(e) => setFilterDept(e.target.value)} style={{ padding: 6 }} />
                 </label>
+                <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span>Status</span>
+                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as Task["status"] | "")} style={{ padding: 6 }}>
+                        <option value="">All</option>
+                        {STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                                {s}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span>Priority</span>
+                    <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} style={{ padding: 6 }}>
+                        <option value="">All</option>
+                        {PRIORITIES.map((p) => (
+                            <option key={p} value={p}>
+                                {p}
+                            </option>
+                        ))}
+                    </select>
+                </label>
                 {loading && <span style={{ opacity: 0.7 }}>Loading...</span>}
             </div>
 
@@ -189,6 +299,26 @@ export default function TasksPage() {
                                             style={{ padding: 6, minWidth: 140 }}
                                         />
                                     </div>
+                                    <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                                        <input
+                                            placeholder="Evidence URL"
+                                            value={t.evidenceUrl ?? ""}
+                                            onChange={(e) => updateTask(t.id, { evidenceUrl: e.target.value || null })}
+                                            style={{ padding: 6 }}
+                                        />
+                                        <textarea
+                                            placeholder="Evidence note"
+                                            value={t.evidenceNote ?? ""}
+                                            onChange={(e) => updateTask(t.id, { evidenceNote: e.target.value || null })}
+                                            style={{ padding: 6, minHeight: 50 }}
+                                        />
+                                    </div>
+                                    <Checklist
+                                        taskId={t.id}
+                                        loadChecklist={loadChecklist}
+                                        itemsState={checklists[t.id]}
+                                        setItemsState={setChecklists}
+                                    />
                                 </div>
                             ))}
                         </div>
