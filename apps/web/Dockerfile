@@ -38,6 +38,9 @@ COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
 COPY --from=deps /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 RUN chmod +x /app/node_modules/.bin/prisma || true
+COPY --from=deps /app/node_modules/.bin ./node_modules/.bin
+COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
+RUN chmod -R +x /app/node_modules/.bin || true
 
 # Entrypoint script to run migrations before starting app (with logging)
 RUN cat > /app/entrypoint.sh <<'SH'
