@@ -2,12 +2,16 @@
 
 FROM node:20-alpine AS deps
 WORKDIR /app
+# Ensure OpenSSL is available for Prisma during `npm install` (postinstall)
+RUN apk add --no-cache openssl
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 RUN npm install
 
 FROM node:20-alpine AS build
 WORKDIR /app
+# Ensure OpenSSL is available when running `npx prisma generate`
+RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Prisma schema exists now, so generate works
