@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "../../../../lib/db";
+import { prisma } from "../../../../../lib/db";
 
 function requireEnv(name: string) {
     const v = process.env[name];
