@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "../../lib/db";
 
 export default async function TasksPage() {
     const tasks = await prisma.task.findMany({ orderBy: [{ createdAt: "desc" }] });
