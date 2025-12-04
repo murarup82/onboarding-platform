@@ -39,7 +39,7 @@ COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
 COPY --from=deps /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 RUN chmod +x /app/node_modules/.bin/prisma || true
 COPY --from=deps /app/node_modules/.bin ./node_modules/.bin
-COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 RUN chmod -R +x /app/node_modules/.bin || true
 
 # Entrypoint script to run migrations before starting app (with logging)
@@ -68,7 +68,7 @@ log PRISMA "Running migrations (prisma migrate deploy)"
 if npx prisma migrate deploy 2>&1 | sed -e 's/^/[PRISMA] /'; then
     log PRISMA "Migrations completed successfully"
 else
-    log PRISMA "Migrations failed — aborting startup"
+    log PRISMA "Migrations failed; aborting startup"
     exit 1
 fi
 

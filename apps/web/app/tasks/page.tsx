@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 type Task = {
     id: string;
@@ -16,39 +16,61 @@ export default function TasksPage() {
     const [title, setTitle] = useState("");
     const [dept, setDept] = useState("HR");
     const [msg, setMsg] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
     async function load() {
-        const res = await fetch("/api/tasks");
-        const json = await res.json();
-        setTasks(json.data ?? []);
+        setLoading(true);
+        setMsg(null);
+        try {
+            const res = await fetch("/api/tasks");
+            const json = await res.json().catch(() => null);
+            if (!res.ok) {
+                setMsg(json?.error ?? `Failed to load tasks (${res.status})`);
+                setTasks([]);
+                return;
+            }
+            setTasks(json?.data ?? []);
+        } catch (error) {
+            console.error("load tasks", error);
+            setMsg("Failed to load tasks.");
+            setTasks([]);
+        } finally {
+            setLoading(false);
+        }
     }
 
     useEffect(() => {
         load();
     }, []);
 
-    async function createTask(e: React.FormEvent) {
+    async function createTask(e: FormEvent) {
         e.preventDefault();
         setMsg(null);
 
-        const res = await fetch("/api/tasks", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ title, department: dept }),
-        });
+        try {
+            const res = await fetch("/api/tasks", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ title, department: dept }),
+            });
 
-        if (!res.ok) {
-            const j = await res.json().catch(() => ({}));
-            setMsg(j.error ?? "Failed");
-            return;
+            const j = await res.json().catch(() => null);
+
+            if (!res.ok) {
+                setMsg(j?.error ?? `Failed (${res.status})`);
+                return;
+            }
+
+            setTitle("");
+            setMsg("Created.");
+            await load();
+            setTimeout(() => setMsg(null), 1500);
+        } catch (error) {
+            console.error("create task", error);
+            setMsg("Failed to create task.");
         }
-
-        setTitle("");
-        setMsg("Created ✅");
-        await load();
-        setTimeout(() => setMsg(null), 1500);
     }
 
     return (
@@ -78,15 +100,16 @@ export default function TasksPage() {
             <hr style={{ margin: "16px 0" }} />
 
             <div style={{ display: "grid", gap: 10 }}>
+                {loading && <div style={{ opacity: 0.7 }}>Loading tasks...</div>}
                 {tasks.map((t) => (
                     <div key={t.id} style={{ border: "1px solid #eee", borderRadius: 12, padding: 10 }}>
                         <div style={{ fontWeight: 600 }}>{t.title}</div>
                         <div style={{ fontSize: 12, opacity: 0.75 }}>
-                            {t.department} • {t.status} • {t.priority}
+                            {t.department} | {t.status} | {t.priority}
                         </div>
                     </div>
                 ))}
-                {tasks.length === 0 && <div style={{ opacity: 0.7 }}>No tasks yet.</div>}
+                {!loading && tasks.length === 0 && <div style={{ opacity: 0.7 }}>No tasks yet.</div>}
             </div>
         </main>
     );

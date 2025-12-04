@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/db";
 
 function requireEnv(name: string) {
@@ -10,35 +11,63 @@ function requireEnv(name: string) {
 // Put TASK_API_KEY in Portainer env vars.
 const API_KEY = process.env.TASK_API_KEY;
 
+function mapError(error: unknown) {
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+        return "Database not reachable. Check DATABASE_URL and network connectivity.";
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        return "Database rejected the query. Ensure migrations have been applied.";
+    }
+    if (error instanceof Error) return error.message;
+    return "Unexpected server error.";
+}
+
+function handleError(error: unknown, status = 500) {
+    // Log full error server-side, return a safe summary to the client.
+    console.error("[/api/tasks]", error);
+    return Response.json({ error: mapError(error) }, { status });
+}
+
 export async function POST(req: Request) {
-    const body = await req.json().catch(() => ({}));
+    try {
+        // Fail fast when misconfigured.
+        requireEnv("DATABASE_URL");
+        const body = await req.json().catch(() => ({}));
 
-    // Optional protection (strongly recommended since it's public behind your domain)
-    const headerKey = req.headers.get("x-api-key");
-    if (API_KEY && headerKey !== API_KEY) {
-        return Response.json({ error: "unauthorized" }, { status: 401 });
+        // Optional protection (strongly recommended since it's public behind your domain)
+        const headerKey = req.headers.get("x-api-key");
+        if (API_KEY && headerKey !== API_KEY) {
+            return Response.json({ error: "unauthorized" }, { status: 401 });
+        }
+
+        const title = String(body.title ?? "").trim();
+        const department = String(body.department ?? "").trim() || "HR";
+
+        if (!title) {
+            return Response.json({ error: "title required" }, { status: 400 });
+        }
+
+        const task = await prisma.task.create({
+            data: {
+                title,
+                department,
+                // defaults for status/priority already in schema
+            },
+        });
+
+        return Response.json({ data: task }, { status: 201 });
+    } catch (error) {
+        return handleError(error);
     }
-
-    const title = String(body.title ?? "").trim();
-    const department = String(body.department ?? "").trim() || "HR";
-
-    if (!title) {
-        return Response.json({ error: "title required" }, { status: 400 });
-    }
-
-    const task = await prisma.task.create({
-        data: {
-            title,
-            department,
-            // defaults for status/priority already in schema
-        },
-    });
-
-    return Response.json({ data: task }, { status: 201 });
 }
 
 export async function GET() {
-    // simple list
-    const tasks = await prisma.task.findMany({ orderBy: [{ createdAt: "desc" }] });
-    return Response.json({ data: tasks });
+    try {
+        requireEnv("DATABASE_URL");
+        // simple list
+        const tasks = await prisma.task.findMany({ orderBy: [{ createdAt: "desc" }] });
+        return Response.json({ data: tasks });
+    } catch (error) {
+        return handleError(error);
+    }
 }
