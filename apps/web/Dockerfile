@@ -9,15 +9,22 @@ FROM node:20-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Prisma schema exists now, so generate works
+RUN npx prisma generate
 RUN npm run build
 
-# Next standalone output
 FROM node:20-alpine AS run
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+
+# Needed for Prisma on alpine (openssl)
+RUN apk add --no-cache openssl
+
+# Next standalone output
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+
 EXPOSE 3000
 CMD ["node", "server.js"]
