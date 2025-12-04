@@ -44,7 +44,7 @@ export async function GET() {
 type TemplateTaskInput = {
     title: string;
     department?: string;
-    ownerRole?: Prisma.OwnerRole;
+    ownerRole?: Prisma.$Enums.OwnerRole;
     dueOffsetDays?: number | null;
     priority?: Prisma.Priority;
     isRequired?: boolean;
