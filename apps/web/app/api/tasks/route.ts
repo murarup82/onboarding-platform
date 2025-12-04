@@ -42,6 +42,11 @@ export async function POST(req: Request) {
 
         const title = String(body.title ?? "").trim();
         const department = String(body.department ?? "").trim() || "HR";
+        const caseId = body.caseId ? String(body.caseId) : undefined;
+        const priority = (body.priority as Prisma.TaskUncheckedCreateInput["priority"]) ?? undefined;
+        const dueDate = body.dueDate ? new Date(body.dueDate) : undefined;
+        const ownerRole = body.ownerRole as Prisma.TaskUncheckedCreateInput["ownerRole"];
+        const assignedToEmail = body.assignedToEmail ? String(body.assignedToEmail) : undefined;
 
         if (!title) {
             return Response.json({ error: "title required" }, { status: 400 });
@@ -51,6 +56,11 @@ export async function POST(req: Request) {
             data: {
                 title,
                 department,
+                priority,
+                dueDate,
+                ownerRole,
+                assignedToEmail,
+                caseId,
                 // defaults for status/priority already in schema
             },
         });
@@ -61,11 +71,15 @@ export async function POST(req: Request) {
     }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
         requireEnv("DATABASE_URL");
-        // simple list
-        const tasks = await prisma.task.findMany({ orderBy: [{ createdAt: "desc" }] });
+        const url = new URL(req.url);
+        const caseId = url.searchParams.get("caseId") ?? undefined;
+        const tasks = await prisma.task.findMany({
+            where: { caseId },
+            orderBy: [{ createdAt: "desc" }],
+        });
         return Response.json({ data: tasks });
     } catch (error) {
         return handleError(error);
