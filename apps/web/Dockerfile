@@ -5,7 +5,6 @@ WORKDIR /app
 # Ensure OpenSSL is available for Prisma during `npm install` (postinstall)
 RUN apk add --no-cache openssl
 COPY package.json package-lock.json* ./
-COPY prisma ./prisma
 RUN npm install
 
 FROM node:20-alpine AS build
