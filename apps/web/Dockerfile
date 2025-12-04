@@ -39,11 +39,41 @@ COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
 COPY --from=deps /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 RUN chmod +x /app/node_modules/.bin/prisma || true
 
-# Entrypoint script to run migrations before starting app
-RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
-    echo 'npx prisma migrate deploy' >> /app/entrypoint.sh && \
-    echo 'exec node server.js' >> /app/entrypoint.sh && \
-    chmod +x /app/entrypoint.sh
+# Entrypoint script to run migrations before starting app (with logging)
+RUN cat > /app/entrypoint.sh <<'SH'
+#!/bin/sh
+set -e
+
+timestamp() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+log() { echo "[$1] $(timestamp) - $2"; }
+
+mask_db_url() {
+    if [ -z "${DATABASE_URL}" ]; then
+        echo "<not-set>"
+        return
+    fi
+    # Mask password if present: postgres://user:pass@host:port/db -> postgres://user:****@host:port/db
+    echo "${DATABASE_URL}" | sed -E 's#(://[^:/]+:)[^@]+@#\1****@#; s#(://)[^@]+@#\1****@#'
+}
+
+log ENTRYPOINT "Starting entrypoint"
+log ENTRYPOINT "NODE_ENV=${NODE_ENV:-<not-set>}"
+log ENTRYPOINT "DATABASE_URL present=${DATABASE_URL:+yes}"
+log ENTRYPOINT "DATABASE_URL (masked)=$(mask_db_url)"
+
+log PRISMA "Running migrations (prisma migrate deploy)"
+if npx prisma migrate deploy 2>&1 | sed -e 's/^/[PRISMA] /'; then
+    log PRISMA "Migrations completed successfully"
+else
+    log PRISMA "Migrations failed — aborting startup"
+    exit 1
+fi
+
+log SERVER "Starting Node server"
+exec node server.js
+SH
+
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 3000
 CMD ["/app/entrypoint.sh"]
