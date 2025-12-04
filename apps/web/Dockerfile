@@ -35,6 +35,9 @@ COPY --from=build /app/public ./public
 # Copy Prisma schema and migrations for runtime access
 COPY prisma ./prisma
 COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+RUN chmod +x /app/node_modules/.bin/prisma || true
 
 # Entrypoint script to run migrations before starting app
 RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
