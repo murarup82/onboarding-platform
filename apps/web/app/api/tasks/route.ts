@@ -10,6 +10,19 @@ function requireEnv(name: string) {
 // Simple MVP shared secret to avoid random internet calls.
 // Put TASK_API_KEY in Portainer env vars.
 const API_KEY = process.env.TASK_API_KEY;
+const PRIORITIES = ["LOW", "MED", "HIGH", "CRITICAL"] as const;
+const STATUSES = ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", "DONE"] as const;
+const OWNER_ROLES = ["HR_ADMIN", "DEPT_OWNER", "HIRING_MANAGER", "EMPLOYEE", "SYS_ADMIN"] as const;
+
+function parseDate(input: unknown) {
+    if (!input) return undefined;
+    const d = new Date(String(input));
+    return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
+function isValid<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
+    return typeof value === "string" && (allowed as readonly string[]).includes(value);
+}
 
 function mapError(error: unknown) {
     if (error instanceof Prisma.PrismaClientInitializationError) {
@@ -43,13 +56,20 @@ export async function POST(req: Request) {
         const title = String(body.title ?? "").trim();
         const department = String(body.department ?? "").trim() || "HR";
         const caseId = body.caseId ? String(body.caseId) : undefined;
-        const priority = (body.priority as Prisma.TaskUncheckedCreateInput["priority"]) ?? undefined;
-        const dueDate = body.dueDate ? new Date(body.dueDate) : undefined;
-        const ownerRole = body.ownerRole as Prisma.TaskUncheckedCreateInput["ownerRole"];
+        const priority = isValid(body.priority, PRIORITIES) ? body.priority : "MED";
+        const dueDate = parseDate(body.dueDate);
+        const ownerRole = isValid(body.ownerRole, OWNER_ROLES)
+            ? (body.ownerRole as Prisma.TaskUncheckedCreateInput["ownerRole"])
+            : undefined;
         const assignedToEmail = body.assignedToEmail ? String(body.assignedToEmail) : undefined;
 
         if (!title) {
             return Response.json({ error: "title required" }, { status: 400 });
+        }
+
+        if (caseId) {
+            const exists = await prisma.case.findUnique({ where: { id: caseId }, select: { id: true } });
+            if (!exists) return Response.json({ error: "caseId not found" }, { status: 400 });
         }
 
         const task = await prisma.task.create({

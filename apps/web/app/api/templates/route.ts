@@ -23,6 +23,13 @@ function handleError(error: unknown, status = 500) {
     return Response.json({ error: mapError(error) }, { status });
 }
 
+const OWNER_ROLES = ["HR_ADMIN", "DEPT_OWNER", "HIRING_MANAGER", "EMPLOYEE", "SYS_ADMIN"] as const;
+const PRIORITIES = ["LOW", "MED", "HIGH", "CRITICAL"] as const;
+
+function isValid<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
+    return typeof value === "string" && (allowed as readonly string[]).includes(value);
+}
+
 export async function GET() {
     try {
         requireEnv("DATABASE_URL");
@@ -82,9 +89,9 @@ export async function POST(req: Request) {
                         templateVersionId: version.id,
                         title: String(t.title ?? "").trim(),
                         department: String(t.department ?? department),
-                        ownerRole: t.ownerRole,
+                        ownerRole: t.ownerRole && isValid(t.ownerRole, OWNER_ROLES) ? t.ownerRole : null,
                         dueOffsetDays: t.dueOffsetDays ?? null,
-                        priority: t.priority ?? "MED",
+                        priority: isValid(t.priority, PRIORITIES) ? t.priority : "MED",
                         isRequired: t.isRequired ?? true,
                         order: t.order ?? idx,
                     })),
