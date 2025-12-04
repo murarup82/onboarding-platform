@@ -11,6 +11,8 @@ FROM node:20-alpine AS build
 WORKDIR /app
 # Ensure OpenSSL is available when running `npx prisma generate`
 RUN apk add --no-cache openssl
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Prisma schema exists now, so generate works

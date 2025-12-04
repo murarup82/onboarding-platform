@@ -49,6 +49,8 @@ jobs:
         with:
           context: ./apps/web
           file: ./apps/web/Dockerfile
+          build-args: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
