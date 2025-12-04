@@ -76,8 +76,15 @@ export async function GET(req: Request) {
         requireEnv("DATABASE_URL");
         const url = new URL(req.url);
         const caseId = url.searchParams.get("caseId") ?? undefined;
+        const department = url.searchParams.get("department") ?? undefined;
+        const statusParams = url.searchParams.getAll("status");
+        const statuses = statusParams.flatMap((s) => s.split(",")).filter(Boolean) as Prisma.TaskWhereInput["status"][];
         const tasks = await prisma.task.findMany({
-            where: { caseId },
+            where: {
+                caseId,
+                department,
+                status: statuses.length ? { in: statuses } : undefined,
+            },
             orderBy: [{ createdAt: "desc" }],
         });
         return Response.json({ data: tasks });

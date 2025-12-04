@@ -29,6 +29,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
     const [data, setData] = useState<CaseDetail | null>(null);
     const [msg, setMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [updatingId, setUpdatingId] = useState<string | null>(null);
 
     async function load() {
         setLoading(true);
@@ -54,6 +55,29 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
     useEffect(() => {
         load();
     }, [params.id]);
+
+    async function updateTask(id: string, patch: Partial<Task>) {
+        setUpdatingId(id);
+        setMsg(null);
+        try {
+            const res = await fetch(`/api/tasks/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(patch),
+            });
+            const json = await res.json().catch(() => null);
+            if (!res.ok) {
+                setMsg(json?.error ?? `Failed to update task (${res.status})`);
+                return;
+            }
+            await load();
+        } catch (error) {
+            console.error("update task", error);
+            setMsg("Failed to update task.");
+        } finally {
+            setUpdatingId(null);
+        }
+    }
 
     return (
         <main>
@@ -87,6 +111,31 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                                                 {t.ownerRole ? ` | Owner: ${t.ownerRole}` : ""}
                                                 {t.assignedToEmail ? ` | Assigned: ${t.assignedToEmail}` : ""}
                                             </div>
+                                        </div>
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                            <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                                <span>Status</span>
+                                                <select
+                                                    value={t.status}
+                                                    onChange={(e) => updateTask(t.id, { status: e.target.value as Task["status"] })}
+                                                    disabled={updatingId === t.id}
+                                                    style={{ padding: 6 }}
+                                                >
+                                                    <option value="NOT_STARTED">NOT_STARTED</option>
+                                                    <option value="IN_PROGRESS">IN_PROGRESS</option>
+                                                    <option value="BLOCKED">BLOCKED</option>
+                                                    <option value="DONE">DONE</option>
+                                                </select>
+                                            </label>
+                                            <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                                <span>Assign</span>
+                                                <input
+                                                    value={t.assignedToEmail ?? ""}
+                                                    onChange={(e) => updateTask(t.id, { assignedToEmail: e.target.value || null })}
+                                                    disabled={updatingId === t.id}
+                                                    style={{ padding: 6 }}
+                                                />
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
